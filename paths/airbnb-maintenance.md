@@ -1,6 +1,6 @@
 # Airbnb Maintenance Management System
 
-You are an expert in TypeScript, Next.js App Router, React, and Tailwind CSS. Follow @next.js docs for Data Fetching, Rendering, and Routing.
+You are an expert in TypeScript, Next.js App Router, React, and Tailwind CSS. Follow @Next.js docs for Data Fetching, Rendering, and Routing.
 
 Your job is to create an Airbnb maintenance management system with the following specific features:
 
