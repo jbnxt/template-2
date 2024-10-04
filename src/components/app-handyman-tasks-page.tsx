@@ -1,8 +1,12 @@
 'use client'
 
-import { useState } from 'react'
-import { Search, Filter, ChevronDown, Play, CheckCircle, Clock } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Search, Filter, Play, CheckCircle, Clock } from 'lucide-react'
 import Link from 'next/link'
+import { useTasks, Task } from '@/lib/hooks/useTasks'
+import { TaskDetailModalComponent } from './app-admin-components-task-detail-modal'
+import { useProperties } from '@/lib/hooks/useProperties'
+import { useHandymen } from '@/lib/hooks/useHandymen'
 
 const initialTasks = [
   { id: 1, property: 'Seaside Villa', priority: 'high', dueDate: '2023-05-15', status: 'New', description: 'Fix leaking roof in master bedroom' },
@@ -13,10 +17,13 @@ const initialTasks = [
 ]
 
 export function Page() {
-  const [tasks, setTasks] = useState(initialTasks)
+  const { tasks, loading: tasksLoading, error: tasksError, updateTask } = useTasks();
+  const { properties } = useProperties();
+  const { handymen } = useHandymen();
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPriority, setFilterPriority] = useState('all')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
 
   const filteredTasks = tasks.filter(task => 
     task.property.toLowerCase().includes(searchTerm.toLowerCase()) &&
@@ -24,22 +31,26 @@ export function Page() {
     (filterStatus === 'all' || task.status === filterStatus)
   )
 
-  const handleActionButton = (taskId, action) => {
-    setTasks(tasks.map(task => {
-      if (task.id === taskId) {
-        switch (action) {
-          case 'start':
-            return { ...task, status: 'In Progress' }
-          case 'complete':
-            return { ...task, status: 'Completed' }
-          case 'pushBack':
-            return { ...task, status: 'Pushed Back' }
-          default:
-            return task
-        }
-      }
-      return task
-    }))
+  const handleActionButton = async (taskId: string, action: string) => {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+
+    let newStatus: string;
+    switch (action) {
+      case 'start':
+        newStatus = 'In Progress';
+        break;
+      case 'complete':
+        newStatus = 'Completed';
+        break;
+      case 'pushBack':
+        newStatus = 'Pushed Back';
+        break;
+      default:
+        return;
+    }
+
+    await updateTask(taskId, { status: newStatus });
   }
 
   const getPriorityColor = (priority) => {
