@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react'
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
-import { Search, Filter, MoreVertical, Plus, User, FileText } from 'lucide-react'
+import { MoreVertical, Plus, User } from 'lucide-react'
 import { TaskDetailModalComponent } from './app-admin-components-task-detail-modal'
 import { CreateTaskModal } from './app-admin-components-create-task-modal'
 import { Button } from "@/components/ui/button"
@@ -10,10 +10,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useTasks, Task } from '@/lib/hooks/useTasks'
 import { useProperties } from '@/lib/hooks/useProperties'
 import { useHandymen, Handyman } from '@/lib/hooks/useHandymen'
-import { PropertyManagement } from './PropertyManagement'
-import { HandymanManagement } from './HandymanManagement'
 
-const columns = ['New', 'In Progress', 'Completed']
+// Define all possible statuses
+const allStatuses = ['New', 'In Progress', 'Completed', 'On Hold', 'Cancelled', 'Pending Review']
 
 export function Page() {
   const { tasks, loading: tasksLoading, error: tasksError, addTask, updateTask, deleteTask } = useTasks();
@@ -44,7 +43,13 @@ export function Page() {
     )
   }, [tasks, searchTerm, filterPriority, filterHandyman, filterProperty])
 
-  const getTasksByStatus = (status) => filteredTasks.filter(task => task.status === status)
+  const tasksByStatus = useMemo(() => {
+    const statusMap: { [key: string]: Task[] } = {}
+    allStatuses.forEach(status => {
+      statusMap[status] = filteredTasks.filter(task => task.status === status)
+    })
+    return statusMap
+  }, [filteredTasks])
 
   const getPriorityColor = (priority) => {
     switch (priority.toLowerCase()) {
@@ -140,17 +145,17 @@ export function Page() {
       </div>
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex flex-nowrap overflow-x-auto space-x-4 pb-8">
-          {columns.map(column => (
-            <Droppable key={column} droppableId={column}>
+        <div className="flex overflow-x-auto space-x-4 pb-8" style={{ minHeight: '70vh' }}>
+          {allStatuses.map(status => (
+            <Droppable key={status} droppableId={status}>
               {(provided) => (
                 <div
                   {...provided.droppableProps}
                   ref={provided.innerRef}
                   className="bg-gray-200 p-4 rounded-lg min-w-[280px] w-[280px] flex-shrink-0"
                 >
-                  <h2 className="font-semibold text-lg mb-4">{column}</h2>
-                  {getTasksByStatus(column).map((task, index) => (
+                  <h2 className="font-semibold text-lg mb-4">{status}</h2>
+                  {tasksByStatus[status].map((task, index) => (
                     <Draggable key={task.id} draggableId={task.id} index={index}>
                       {(provided) => (
                         <div
@@ -211,14 +216,6 @@ export function Page() {
           handymen={handymen}
         />
       )}
-
-      <section className="mb-12">
-        <PropertyManagement />
-      </section>
-
-      <section className="mb-12">
-        <HandymanManagement />
-      </section>
     </div>
   )
 }

@@ -39,8 +39,8 @@ export function PropertyManagement() {
   if (error) return <div>Error: {error}</div>;
 
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Property Management</h2>
+    <div className="container mx-auto px-4 py-8">
+      <h1 className="text-2xl font-bold mb-6">Property Management</h1>
       <Button onClick={() => setIsAddModalOpen(true)}>Add Property</Button>
       <ul className="mt-4">
         {Array.isArray(properties) && properties.length > 0 ? (

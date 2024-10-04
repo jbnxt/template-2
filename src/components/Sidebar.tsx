@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/hooks/useAuth';
-import { LogOut, User } from 'lucide-react';
+import { LogOut, LayoutDashboard, Building, Users, UserCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
 export function Sidebar() {
@@ -22,20 +22,20 @@ export function Sidebar() {
   return (
     <div className="bg-gray-800 text-white w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out flex flex-col justify-between">
       <nav>
-        <Link href="/dashboard" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+        <Link href="/admin" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+          <LayoutDashboard className="inline-block mr-2 h-4 w-4" />
           Dashboard
         </Link>
-        <Link href="/dashboard/tasks" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
-          Tasks
-        </Link>
-        <Link href="/dashboard/properties" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+        <Link href="/admin/properties" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+          <Building className="inline-block mr-2 h-4 w-4" />
           Properties
         </Link>
-        <Link href="/dashboard/reports" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
-          Reports
+        <Link href="/admin/handyman" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+          <Users className="inline-block mr-2 h-4 w-4" />
+          Handyman List
         </Link>
-        <Link href="/dashboard/profile" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
-          <User className="inline-block mr-2 h-4 w-4" />
+        <Link href="/admin/profile" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
+          <UserCircle className="inline-block mr-2 h-4 w-4" />
           Profile
         </Link>
       </nav>

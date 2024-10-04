@@ -8,7 +8,7 @@ export interface Task {
   property: string;
   priority: string;
   description: string;
-  status: string;
+  status: 'New' | 'In Progress' | 'Completed' | 'On Hold' | 'Cancelled' | 'Pending Review';
   handymanId: string | null; // Changed from handyman to handymanId
   dueDate: string;
   pdfFile?: File | null;
