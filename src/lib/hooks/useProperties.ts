@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from 'firebase/firestore';
+import { collection, query, onSnapshot, doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 
 export interface Property {
@@ -13,9 +13,9 @@ export function useProperties() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const fetchProperties = () => {
     const q = query(collection(db, 'properties'));
-    const unsubscribe = onSnapshot(q, 
+    return onSnapshot(q, 
       (querySnapshot) => {
         const propertiesData = querySnapshot.docs.map(doc => ({
           id: doc.id,
@@ -30,36 +30,38 @@ export function useProperties() {
         setLoading(false);
       }
     );
+  };
 
+  useEffect(() => {
+    const unsubscribe = fetchProperties();
     return () => unsubscribe();
   }, []);
 
-  const addProperty = async (newProperty: Omit<Property, 'id'>) => {
-    try {
-      await addDoc(collection(db, 'properties'), newProperty);
-    } catch (err) {
-      console.error("Error adding property: ", err);
-      setError("Failed to add property");
-    }
+  const refreshProperties = () => {
+    setLoading(true);
+    const unsubscribe = fetchProperties();
+    return () => unsubscribe();
   };
 
-  const updateProperty = async (propertyId: string, updatedProperty: Partial<Property>) => {
+  const updateProperty = async (id: string, updatedData: Partial<Property>) => {
     try {
-      await updateDoc(doc(db, 'properties', propertyId), updatedProperty);
+      const propertyRef = doc(db, 'properties', id);
+      await updateDoc(propertyRef, updatedData);
     } catch (err) {
       console.error("Error updating property: ", err);
       setError("Failed to update property");
     }
   };
 
-  const deleteProperty = async (propertyId: string) => {
+  const deleteProperty = async (id: string) => {
     try {
-      await deleteDoc(doc(db, 'properties', propertyId));
+      const propertyRef = doc(db, 'properties', id);
+      await deleteDoc(propertyRef);
     } catch (err) {
       console.error("Error deleting property: ", err);
       setError("Failed to delete property");
     }
   };
 
-  return { properties, loading, error, addProperty, updateProperty, deleteProperty };
+  return { properties, loading, error, refreshProperties, updateProperty, deleteProperty };
 }
