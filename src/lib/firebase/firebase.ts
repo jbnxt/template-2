@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getFirestore, Firestore } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -16,7 +16,7 @@ console.log("Firebase config:", firebaseConfig);
 
 let app;
 let auth;
-let db;
+let db: Firestore | null = null;
 let storage;
 
 try {

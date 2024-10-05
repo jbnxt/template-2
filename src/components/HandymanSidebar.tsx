@@ -3,10 +3,10 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../lib/hooks/useAuth';
-import { LayoutDashboard, Building, Calendar, UserCircle, LogOut } from 'lucide-react';
+import { LogOut, Briefcase, UserCircle } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
-export function Sidebar() {
+export function HandymanSidebar() {
   const router = useRouter();
   const { signOut } = useAuth();
 
@@ -23,12 +23,8 @@ export function Sidebar() {
     <div className="bg-gray-800 text-white w-64 space-y-6 py-7 px-2 absolute inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 transition duration-200 ease-in-out flex flex-col justify-between">
       <nav>
         <Link href="/handyman" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
-          <LayoutDashboard className="inline-block mr-2 h-4 w-4" />
-          Dashboard
-        </Link>
-        <Link href="/handyman/schedule" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
-          <Calendar className="inline-block mr-2 h-4 w-4" />
-          Schedule
+          <Briefcase className="inline-block mr-2 h-4 w-4" />
+          My Tasks
         </Link>
         <Link href="/handyman/profile" className="block py-2.5 px-4 rounded transition duration-200 hover:bg-gray-700 hover:text-white">
           <UserCircle className="inline-block mr-2 h-4 w-4" />

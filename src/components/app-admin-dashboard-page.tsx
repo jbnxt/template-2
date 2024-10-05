@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd'
+import { DragDropContext, Droppable, Draggable, DropResult } from 'react-beautiful-dnd'
 import { MoreVertical, Plus, User } from 'lucide-react'
 import { TaskDetailModalComponent } from './app-admin-components-task-detail-modal'
 import { CreateTaskModal } from './app-admin-components-create-task-modal'
@@ -10,9 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useTasks, Task } from '@/lib/hooks/useTasks'
 import { useProperties } from '@/lib/hooks/useProperties'
 import { useHandymen, Handyman } from '@/lib/hooks/useHandymen'
+import { toast } from 'react-hot-toast'
 
-// Define all possible statuses
-const allStatuses = ['New', 'In Progress', 'Completed', 'On Hold', 'Cancelled', 'Pending Review']
+// Remove the toast import
+
+const columns = ['New', 'In Progress', 'Completed', 'Pushed Back']
 
 export function Page() {
   const { tasks, loading: tasksLoading, error: tasksError, addTask, updateTask, deleteTask } = useTasks();
@@ -43,13 +45,7 @@ export function Page() {
     )
   }, [tasks, searchTerm, filterPriority, filterHandyman, filterProperty])
 
-  const tasksByStatus = useMemo(() => {
-    const statusMap: { [key: string]: Task[] } = {}
-    allStatuses.forEach(status => {
-      statusMap[status] = filteredTasks.filter(task => task.status === status)
-    })
-    return statusMap
-  }, [filteredTasks])
+  const getTasksByStatus = (status) => filteredTasks.filter(task => task.status === status)
 
   const getPriorityColor = (priority) => {
     switch (priority.toLowerCase()) {
@@ -60,26 +56,75 @@ export function Page() {
     }
   }
 
-  const handleCreateTask = async (newTask) => {
-    await addTask(newTask)
-    setIsCreateModalOpen(false)
-  }
-
-  const handleUpdateTask = async (updatedTask) => {
-    await updateTask(updatedTask.id, updatedTask)
-    setSelectedTask(null)
-  }
-
-  const handleDeleteTask = async (taskId) => {
-    if (confirm('Are you sure you want to delete this task?')) {
-      await deleteTask(taskId)
-      setSelectedTask(null)
+  const handleCreateTask = async (newTask: Omit<Task, 'id' | 'ticketNumber'>) => {
+    try {
+      await addTask(newTask)
+      setIsCreateModalOpen(false)
+      toast.success('Task created successfully')
+    } catch (error) {
+      console.error('Failed to create task:', error)
+      toast.error('Failed to create task. Please try again.')
     }
   }
 
-  const onDragEnd = (result) => {
-    // Implement drag and drop logic here
+  const handleUpdateTask = async (updatedTask: Task) => {
+    try {
+      await updateTask(updatedTask.id, updatedTask);
+      setSelectedTask(null);
+      toast.success('Task updated successfully')
+    } catch (error) {
+      console.error('Failed to update task:', error)
+      toast.error('Failed to update task. Please try again.')
+    }
   }
+
+  const handleDeleteTask = async (taskId: string) => {
+    if (confirm('Are you sure you want to delete this task?')) {
+      try {
+        await deleteTask(taskId)
+        setSelectedTask(null)
+        toast.success('Task deleted successfully')
+      } catch (error) {
+        console.error('Failed to delete task:', error)
+        toast.error('Failed to delete task. Please try again.')
+      }
+    }
+  }
+
+  const onDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    // If there's no destination, or the item was dropped back in its original position, do nothing
+    if (!destination || (destination.droppableId === source.droppableId && destination.index === source.index)) {
+      return;
+    }
+
+    const task = tasks.find(t => t.id === draggableId);
+    if (!task) return;
+
+    // Update the task status based on the destination column
+    const newStatus = destination.droppableId as Task['status'];
+    
+    // If the status hasn't changed, do nothing
+    if (task.status === newStatus) return;
+
+    try {
+      // Update the task in the database
+      await updateTask(task.id, { ...task, status: newStatus });
+      
+      // Optionally, you can update the local state here for immediate UI update
+      // This might not be necessary if you're using real-time updates with Firestore
+      setTasks(prevTasks => 
+        prevTasks.map(t => 
+          t.id === task.id ? { ...t, status: newStatus } : t
+        )
+      );
+      toast.success('Task status updated successfully')
+    } catch (error) {
+      console.error('Failed to update task status:', error);
+      toast.error('Failed to update task status. Please try again.')
+    }
+  };
 
   if (tasksLoading || propertiesLoading || handymenLoading) {
     return <div>Loading...</div>
@@ -146,16 +191,16 @@ export function Page() {
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex overflow-x-auto space-x-4 pb-8" style={{ minHeight: '70vh' }}>
-          {allStatuses.map(status => (
-            <Droppable key={status} droppableId={status}>
+          {columns.map(column => (
+            <Droppable key={column} droppableId={column}>
               {(provided) => (
                 <div
                   {...provided.droppableProps}
                   ref={provided.innerRef}
                   className="bg-gray-200 p-4 rounded-lg min-w-[280px] w-[280px] flex-shrink-0"
                 >
-                  <h2 className="font-semibold text-lg mb-4">{status}</h2>
-                  {tasksByStatus[status].map((task, index) => (
+                  <h2 className="font-semibold text-lg mb-4">{column}</h2>
+                  {getTasksByStatus(column).map((task, index) => (
                     <Draggable key={task.id} draggableId={task.id} index={index}>
                       {(provided) => (
                         <div
@@ -165,7 +210,7 @@ export function Page() {
                           className="bg-white p-4 rounded-md shadow mb-4"
                         >
                           <div className="flex justify-between items-start mb-2">
-                            <h3 className="font-semibold">{task.property}</h3>
+                            <h3 className="font-semibold">{task.ticketNumber}</h3>
                             <button
                               className="text-gray-500 hover:text-gray-700"
                               onClick={() => setSelectedTask(task)}
@@ -173,7 +218,13 @@ export function Page() {
                               <MoreVertical className="h-5 w-5" />
                             </button>
                           </div>
-                          <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                          <p className="text-sm text-gray-600 mb-2">{task.property}</p>
+                          <p className="text-sm text-gray-500 mb-2">{task.description}</p>
+                          {task.scheduledTimeslots && task.scheduledTimeslots.length > 0 && (
+                            <p className="text-xs text-gray-400 mb-2">
+                              Scheduled: {task.scheduledTimeslots.map(t => t.date).join(', ')}
+                            </p>
+                          )}
                           <div className="flex justify-between items-center">
                             <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getPriorityColor(task.priority)} text-white`}>
                               {task.priority}

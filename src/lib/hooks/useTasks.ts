@@ -1,79 +1,151 @@
 import { useState, useEffect } from 'react';
-import { collection, query, orderBy, onSnapshot, addDoc, updateDoc, deleteDoc, doc, where } from 'firebase/firestore';
+import { 
+  collection, 
+  query, 
+  onSnapshot, 
+  doc, 
+  updateDoc, 
+  addDoc,
+  getDoc,
+  setDoc,  // Add this import
+  DocumentData,
+  Firestore
+} from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
-import { useAuth } from './useAuth';
 
 export interface Task {
   id: string;
+  ticketNumber: string;
   property: string;
+  propertyId: string;
+  address: string;
   priority: string;
   description: string;
-  status: 'New' | 'In Progress' | 'Completed' | 'On Hold' | 'Cancelled' | 'Pending Review';
-  handymanId: string | null; // Changed from handyman to handymanId
-  dueDate: string;
-  pdfFile?: File | null;
+  status: 'New' | 'Assigned' | 'In Progress' | 'Completed' | 'Pushed Back';
+  handymanId: string;
+  scheduledTimeslots?: Timeslot[];
+}
+
+// Add this interface if it's not already defined elsewhere
+interface Timeslot {
+  date: string;
+  hours: string[];
 }
 
 export function useTasks() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useAuth();
 
   useEffect(() => {
-    if (!user) return;
-
-    let q = query(collection(db, 'tasks'), orderBy('dueDate', 'asc'));
-
-    if (user.role === 'handyman') {
-      q = query(collection(db, 'tasks'), where('handymanId', '==', user.uid), orderBy('dueDate', 'asc'));
+    console.log("useTasks effect running");
+    if (!db) {
+      console.error("Firestore is not initialized");
+      setError("Firestore is not initialized");
+      setLoading(false);
+      return;
     }
 
-    const unsubscribe = onSnapshot(q, 
-      (querySnapshot) => {
-        const tasksData = querySnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        } as Task));
-        setTasks(tasksData);
-        setLoading(false);
+    console.log("Creating tasks query");
+    const tasksQuery = query(collection(db, 'tasks'));
+
+    console.log("Setting up onSnapshot listener");
+    const unsubscribe = onSnapshot(tasksQuery, 
+      async (snapshot) => {
+        console.log("Snapshot received, docs count:", snapshot.docs.length);
+        try {
+          const tasksData = await Promise.all(snapshot.docs.map(async (docSnapshot) => {
+            console.log("Processing task:", docSnapshot.id);
+            const taskData = docSnapshot.data() as Task;
+            let address = 'Address not available';
+            if (taskData.propertyId) {
+              try {
+                console.log("Fetching property:", taskData.propertyId);
+                const propertyDoc = await getDoc(doc(db, 'properties', taskData.propertyId));
+                const propertyData = propertyDoc.data() as DocumentData | undefined;
+                address = propertyData?.address || 'Address not available';
+              } catch (propertyError) {
+                console.error("Error fetching property:", propertyError);
+              }
+            } else {
+              console.log("No propertyId for task:", docSnapshot.id);
+            }
+            return {
+              ...taskData,
+              id: docSnapshot.id,
+              address,
+            };
+          }));
+          console.log("Tasks processed, count:", tasksData.length);
+          setTasks(tasksData);
+          setLoading(false);
+        } catch (err) {
+          console.error("Error processing tasks:", err);
+          setError("Failed to process tasks");
+          setLoading(false);
+        }
       },
       (err) => {
-        console.error("Error fetching tasks: ", err);
+        console.error("Error fetching tasks:", err);
         setError("Failed to fetch tasks");
         setLoading(false);
       }
     );
 
-    return () => unsubscribe();
-  }, [user]);
+    return () => {
+      console.log("Unsubscribing from tasks listener");
+      unsubscribe();
+    };
+  }, []);
 
-  const addTask = async (newTask: Omit<Task, 'id'>) => {
-    try {
-      await addDoc(collection(db, 'tasks'), newTask);
-    } catch (err) {
-      console.error("Error adding task: ", err);
-      setError("Failed to add task");
+  const updateTask = async (taskId: string, updateData: Partial<Task>) => {
+    if (!db) {
+      console.error("Firestore is not initialized");
+      setError("Firestore is not initialized");
+      return;
     }
-  };
-
-  const updateTask = async (taskId: string, updatedTask: Partial<Task>) => {
     try {
-      await updateDoc(doc(db, 'tasks', taskId), updatedTask);
+      console.log("Updating task:", taskId, updateData);
+      const taskRef = doc(db, 'tasks', taskId);
+      await updateDoc(taskRef, updateData);
+      console.log("Task updated successfully");
     } catch (err) {
-      console.error("Error updating task: ", err);
+      console.error("Error updating task:", err);
       setError("Failed to update task");
     }
   };
 
-  const deleteTask = async (taskId: string) => {
+  const addTask = async (newTask: Omit<Task, 'id' | 'ticketNumber'>) => {
+    if (!db) {
+      console.error("Firestore is not initialized");
+      throw new Error("Firestore is not initialized");
+    }
     try {
-      await deleteDoc(doc(db, 'tasks', taskId));
+      console.log("Adding new task:", newTask);
+      const ticketNumber = await generateTicketNumber();
+      const taskWithTicket = { ...newTask, ticketNumber };
+      const docRef = await addDoc(collection(db, 'tasks'), taskWithTicket);
+      console.log("Task added successfully with ID:", docRef.id);
+      return docRef.id;
     } catch (err) {
-      console.error("Error deleting task: ", err);
-      setError("Failed to delete task");
+      console.error("Error adding task:", err);
+      throw err; // Re-throw the error to be handled by the component
     }
   };
 
-  return { tasks, loading, error, addTask, updateTask, deleteTask };
+  const generateTicketNumber = async () => {
+    if (!db) {
+      throw new Error("Firestore is not initialized");
+    }
+    const counterRef = doc(db, 'counters', 'taskCounter');
+    const counterSnap = await getDoc(counterRef);
+    let counter = 1;
+    if (counterSnap.exists()) {
+      counter = counterSnap.data().value + 1;
+    }
+    await setDoc(counterRef, { value: counter }, { merge: true });
+    return `TASK-${counter.toString().padStart(4, '0')}`;
+  };
+
+  return { tasks, loading, error, updateTask, addTask, generateTicketNumber };
 }

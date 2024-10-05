@@ -11,13 +11,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 
 interface Task {
   id: string
+  ticketNumber: string
   property: string
+  propertyId: string
+  address: string
   priority: string
   description: string
   status: string
   handymanId: string | null // Changed from handyman to handymanId
   dueDate: string
   pdfFile?: File | null
+  scheduledTimeslots?: Timeslot[]
+}
+
+interface Timeslot {
+  date: string;
+  hours: string[];
 }
 
 interface TaskDetailModalProps {
@@ -34,10 +43,10 @@ export function TaskDetailModalComponent({
   onClose, 
   onUpdate, 
   onDelete, 
-  properties = [], 
-  handymen = [] 
+  properties, 
+  handymen 
 }: TaskDetailModalProps) {
-  const [editedTask, setEditedTask] = useState<Task>(task)
+  const [editedTask, setEditedTask] = useState(task)
   const [pdfFileName, setPdfFileName] = useState<string | null>(null)
 
   useEffect(() => {
@@ -72,18 +81,19 @@ export function TaskDetailModalComponent({
 
   return (
     <Dialog open={true} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent>
         <DialogHeader>
-          <DialogTitle>Task Details</DialogTitle>
-          <button 
-            onClick={onClose}
-            className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground"
-          >
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </button>
+          <DialogTitle>Task Details: {editedTask.ticketNumber}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label>Property ID</Label>
+            <Input value={editedTask.propertyId} disabled />
+          </div>
+          <div className="space-y-2">
+            <Label>Address</Label>
+            <Input value={editedTask.address} disabled />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="property">Property</Label>
             <Select name="property" value={editedTask.property} onValueChange={(value) => handleSelectChange('property', value)}>
@@ -183,6 +193,29 @@ export function TaskDetailModalComponent({
               </Button>
               {pdfFileName && <span className="text-sm text-gray-500">{pdfFileName}</span>}
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Scheduled Timeslots</Label>
+            {editedTask.scheduledTimeslots && editedTask.scheduledTimeslots.length > 0 && (
+              <div className="flex flex-col space-y-2">
+                {editedTask.scheduledTimeslots.map((timeslot, index) => (
+                  <div key={index} className="flex items-center space-x-2">
+                    <Input value={`${timeslot.date}: ${timeslot.hours.join(', ')}`} readOnly />
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      onClick={() => {
+                        const newTimeslots = [...editedTask.scheduledTimeslots];
+                        newTimeslots.splice(index, 1);
+                        setEditedTask(prev => ({ ...prev, scheduledTimeslots: newTimeslots }));
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="flex justify-end space-x-2">
             <Button type="button" variant="outline" onClick={onClose}>
