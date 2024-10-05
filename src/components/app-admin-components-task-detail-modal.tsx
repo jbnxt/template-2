@@ -1,32 +1,22 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { X, Upload } from 'lucide-react'
+import { X, Upload, Image as ImageIcon, Trash2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Task, Timeslot } from '@/lib/types'
+import { storage } from '@/lib/firebase/firebase'
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage'
+import { toast } from 'react-hot-toast'
 
-interface Task {
-  id: string
-  ticketNumber: string
-  property: string
-  propertyId: string
-  address: string
-  priority: string
-  description: string
-  status: string
-  handymanId: string | null // Changed from handyman to handymanId
-  dueDate: string
-  pdfFile?: File | null
-  scheduledTimeslots?: Timeslot[]
-}
-
-interface Timeslot {
-  date: string;
-  hours: string[];
+interface Handyman {
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
 interface TaskDetailModalProps {
@@ -43,11 +33,13 @@ export function TaskDetailModalComponent({
   onClose, 
   onUpdate, 
   onDelete, 
-  properties, 
-  handymen 
+  properties = [], 
+  handymen = []
 }: TaskDetailModalProps) {
   const [editedTask, setEditedTask] = useState(task)
-  const [pdfFileName, setPdfFileName] = useState<string | null>(null)
+  const [images, setImages] = useState<File[]>([])
+  const [imageUrls, setImageUrls] = useState<string[]>(task.imageUrls || [])
+  const [isUploading, setIsUploading] = useState(false)
 
   useEffect(() => {
     if (task.pdfFile) {
@@ -64,19 +56,57 @@ export function TaskDetailModalComponent({
     setEditedTask(prev => ({ ...prev, [name]: value }))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file && file.type === 'application/pdf') {
-      setEditedTask(prev => ({ ...prev, pdfFile: file }))
-      setPdfFileName(file.name)
-    } else {
-      alert('Please select a PDF file.')
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    setImages(prevImages => [...prevImages, ...files])
+
+    setIsUploading(true)
+    try {
+      const uploadPromises = files.map(async (file) => {
+        const storageRef = ref(storage, `tasks/${task.id}/${file.name}`)
+        await uploadBytes(storageRef, file)
+        return getDownloadURL(storageRef)
+      })
+
+      const urls = await Promise.all(uploadPromises)
+      setImageUrls(prevUrls => [...prevUrls, ...urls])
+      setEditedTask(prev => ({ ...prev, imageUrls: [...(prev.imageUrls || []), ...urls] }))
+      toast.success('Images uploaded successfully')
+    } catch (error) {
+      console.error('Error uploading images:', error)
+      toast.error('Failed to upload images. Please try again.')
+    } finally {
+      setIsUploading(false)
     }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onUpdate(editedTask)
+  }
+
+  const handleApproveTimeslot = (index: number) => {
+    const updatedTimeslots = [...(editedTask.scheduledTimeslots || [])];
+    updatedTimeslots[index] = { ...updatedTimeslots[index], approvalStatus: 'approved' };
+    setEditedTask(prev => ({ ...prev, scheduledTimeslots: updatedTimeslots }));
+  }
+
+  const handleRejectTimeslot = (index: number) => {
+    const updatedTimeslots = [...(editedTask.scheduledTimeslots || [])];
+    updatedTimeslots[index] = { ...updatedTimeslots[index], approvalStatus: 'rejected' };
+    setEditedTask(prev => ({ ...prev, scheduledTimeslots: updatedTimeslots }));
+  }
+
+  const handleEditTimeslot = (index: number, updatedTimeslot: Timeslot) => {
+    const updatedTimeslots = [...(editedTask.scheduledTimeslots || [])];
+    updatedTimeslots[index] = updatedTimeslot;
+    setEditedTask(prev => ({ ...prev, scheduledTimeslots: updatedTimeslots }));
+  }
+
+  const handleDelete = () => {
+    if (window.confirm('Are you sure you want to delete this task? This action cannot be undone.')) {
+      onDelete();
+    }
   }
 
   return (
@@ -138,10 +168,9 @@ export function TaskDetailModalComponent({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="New">New</SelectItem>
-                <SelectItem value="Assigned">Assigned</SelectItem>
-                <SelectItem value="In Progress">In Progress</SelectItem>
-                <SelectItem value="Completed">Completed</SelectItem>
-                <SelectItem value="Pushed Back">Pushed Back</SelectItem>
+                <SelectItem value="Pending Approval">Pending Approval</SelectItem>
+                <SelectItem value="Approved">Approved</SelectItem>
+                <SelectItem value="Done">Done</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -166,55 +195,76 @@ export function TaskDetailModalComponent({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="dueDate">Due Date</Label>
-            <Input
-              id="dueDate"
-              name="dueDate"
-              type="date"
-              value={editedTask.dueDate}
-              onChange={handleChange}
-              required
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="pdfFile">PDF File</Label>
+            <Label htmlFor="images">Images</Label>
             <div className="flex items-center space-x-2">
               <Input
-                id="pdfFile"
-                name="pdfFile"
+                id="images"
+                name="images"
                 type="file"
-                accept=".pdf"
-                onChange={handleFileChange}
+                accept="image/*"
+                multiple
+                onChange={handleImageUpload}
                 className="hidden"
+                disabled={isUploading}
               />
-              <Button type="button" variant="outline" onClick={() => document.getElementById('pdfFile')?.click()}>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload PDF
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => document.getElementById('images')?.click()}
+                disabled={isUploading}
+              >
+                <ImageIcon className="h-4 w-4 mr-2" />
+                {isUploading ? 'Uploading...' : 'Upload Images'}
               </Button>
-              {pdfFileName && <span className="text-sm text-gray-500">{pdfFileName}</span>}
+            </div>
+            <div className="grid grid-cols-4 gap-2 mt-2">
+              {imageUrls.map((url, index) => (
+                <img key={index} src={url} alt={`Task image ${index + 1}`} className="w-full h-24 object-cover rounded" />
+              ))}
             </div>
           </div>
           <div className="space-y-2">
             <Label>Scheduled Timeslots</Label>
-            {editedTask.scheduledTimeslots && editedTask.scheduledTimeslots.length > 0 && (
+            {editedTask.scheduledTimeslots && editedTask.scheduledTimeslots.length > 0 ? (
               <div className="flex flex-col space-y-2">
                 {editedTask.scheduledTimeslots.map((timeslot, index) => (
                   <div key={index} className="flex items-center space-x-2">
-                    <Input value={`${timeslot.date}: ${timeslot.hours.join(', ')}`} readOnly />
+                    <Input 
+                      value={`${timeslot.date}: ${timeslot.hours.join(', ')}`} 
+                      readOnly 
+                    />
+                    <span className={`font-semibold ${
+                      timeslot.approvalStatus === 'approved' ? 'text-green-600' :
+                      timeslot.approvalStatus === 'rejected' ? 'text-red-600' :
+                      'text-yellow-600'
+                    }`}>
+                      {timeslot.approvalStatus}
+                    </span>
+                    {timeslot.approvalStatus === 'pending' && (
+                      <>
+                        <Button type="button" onClick={() => handleApproveTimeslot(index)}>
+                          Approve
+                        </Button>
+                        <Button type="button" onClick={() => handleRejectTimeslot(index)}>
+                          Reject
+                        </Button>
+                      </>
+                    )}
                     <Button 
                       type="button" 
-                      variant="outline" 
                       onClick={() => {
-                        const newTimeslots = [...editedTask.scheduledTimeslots];
-                        newTimeslots.splice(index, 1);
-                        setEditedTask(prev => ({ ...prev, scheduledTimeslots: newTimeslots }));
+                        // Implement edit functionality
+                        // You might want to open a modal or inline form for editing
+                        console.log('Edit timeslot:', timeslot);
                       }}
                     >
-                      Remove
+                      Edit
                     </Button>
                   </div>
                 ))}
               </div>
+            ) : (
+              <p>No scheduled timeslots</p>
             )}
           </div>
           <div className="flex justify-end space-x-2">
@@ -222,6 +272,10 @@ export function TaskDetailModalComponent({
               Cancel
             </Button>
             <Button type="submit">Update Task</Button>
+            <Button type="button" variant="destructive" onClick={handleDelete}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete Task
+            </Button>
           </div>
         </form>
       </DialogContent>

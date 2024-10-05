@@ -11,10 +11,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input"
 import { Checkbox } from "@/components/ui/checkbox"
 import { toast } from 'react-hot-toast'
+import Image from 'next/image'
 
 interface Timeslot {
   date: string;
   hours: string[];
+  approvalStatus: 'pending' | 'approved' | 'rejected';
 }
 
 export function Page() {
@@ -31,6 +33,7 @@ export function Page() {
   const { availableDates, loading: availabilityLoading, error: availabilityError, fetchAvailability } = usePropertyAvailability();
   const [selectedTimeslots, setSelectedTimeslots] = useState<Timeslot[]>([])
   const [isAddingTimeslot, setIsAddingTimeslot] = useState(false)
+  const [selectedImage, setSelectedImage] = useState<string | null>(null)
 
   const handymanTasks = useMemo(() => {
     return tasks.filter(task => task.handymanId === user?.uid);
@@ -67,6 +70,7 @@ export function Page() {
     const newTimeslot: Timeslot = {
       date: selectedDate,
       hours: isEntireDaySelected ? ['Entire Day'] : selectedHours,
+      approvalStatus: 'pending'
     };
 
     setSelectedTimeslots([...selectedTimeslots, newTimeslot]);
@@ -87,13 +91,18 @@ export function Page() {
     }
 
     try {
+      const timeslotsWithApproval = selectedTimeslots.map(timeslot => ({
+        ...timeslot,
+        approvalStatus: timeslot.approvalStatus || 'pending'
+      }));
+
       await updateTask(selectedTask.id, { 
-        status: 'Scheduled',
-        scheduledTimeslots: selectedTimeslots,
+        status: 'In Progress',
+        scheduledTimeslots: timeslotsWithApproval,
       });
       setSelectedTask(null);
       setSelectedTimeslots([]);
-      toast.success('Task scheduled successfully');
+      toast.success('Task scheduled and sent for approval');
     } catch (error) {
       console.error('Failed to schedule task:', error);
       toast.error('Failed to schedule task. Please try again.');
@@ -313,30 +322,72 @@ export function Page() {
                 )}
               </>
             )}
+
+            {selectedTask?.imageUrls && selectedTask.imageUrls.length > 0 && (
+              <div className="mt-4">
+                <h4 className="font-semibold mb-2">Images:</h4>
+                <div className="grid grid-cols-4 gap-2">
+                  {selectedTask.imageUrls.map((url, index) => (
+                    <img 
+                      key={index} 
+                      src={url} 
+                      alt={`Task image ${index + 1}`} 
+                      className="w-full h-24 object-cover rounded cursor-pointer" 
+                      onClick={() => setSelectedImage(url)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           {selectedTask?.scheduledTimeslots && selectedTask.scheduledTimeslots.length > 0 && (
             <div className="mt-4">
               <h4 className="font-semibold mb-2">Scheduled Timeslots:</h4>
               {selectedTask.scheduledTimeslots.map((timeslot, index) => (
                 <p key={index}>
-                  {timeslot.date}: {timeslot.hours.join(', ')}
+                  {timeslot.date}: {timeslot.hours.join(', ')} - 
+                  <span className={`font-semibold ${
+                    timeslot.approvalStatus === 'approved' ? 'text-green-600' :
+                    timeslot.approvalStatus === 'rejected' ? 'text-red-600' :
+                    'text-yellow-600'
+                  }`}>
+                    {timeslot.approvalStatus 
+                      ? timeslot.approvalStatus.charAt(0).toUpperCase() + timeslot.approvalStatus.slice(1)
+                      : 'Pending'}
+                  </span>
                 </p>
               ))}
             </div>
           )}
           <DialogFooter>
             <div className="flex space-x-2">
-              <Button onClick={() => selectedTask && handleStatusChange(selectedTask.id, 'Assigned')} disabled={selectedTask?.status === 'Assigned'}>
-                Assigned
+              <Button onClick={() => selectedTask && handleStatusChange(selectedTask.id, 'Pending Approval')} disabled={selectedTask?.status === 'Pending Approval'}>
+                Submit for Approval
               </Button>
-              <Button onClick={() => selectedTask && handleStatusChange(selectedTask.id, 'In Progress')} disabled={selectedTask?.status === 'In Progress'}>
-                In Progress
-              </Button>
-              <Button onClick={() => selectedTask && handleStatusChange(selectedTask.id, 'Completed')} disabled={selectedTask?.status === 'Completed'}>
-                Completed
+              <Button onClick={() => selectedTask && handleStatusChange(selectedTask.id, 'Done')} disabled={selectedTask?.status !== 'Approved'}>
+                Mark as Done
               </Button>
             </div>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Image preview dialog */}
+      <Dialog open={!!selectedImage} onOpenChange={() => setSelectedImage(null)}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Image Preview</DialogTitle>
+          </DialogHeader>
+          {selectedImage && (
+            <div className="relative w-full h-[80vh]">
+              <Image 
+                src={selectedImage} 
+                alt="Task image preview" 
+                layout="fill" 
+                objectFit="contain"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

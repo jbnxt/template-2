@@ -1,19 +1,14 @@
 'use client'
 
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
-
-interface Task {
-  id: string;
-  title: string;
-  status: string;
-}
+import { Task } from '@/lib/hooks/useTasks';
 
 interface KanbanBoardProps {
   tasks: Task[];
-  onTaskUpdate: () => void;
+  onTaskUpdate: (taskId: string, updates: Partial<Task>) => Promise<void>;
 }
 
-const columns = ['To Do', 'In Progress', 'Done'];
+const columns = ['New', 'Pending Approval', 'Approved', 'Done'];
 
 export function KanbanBoard({ tasks, onTaskUpdate }: KanbanBoardProps) {
   const onDragEnd = async (result: any) => {
@@ -23,13 +18,7 @@ export function KanbanBoard({ tasks, onTaskUpdate }: KanbanBoardProps) {
 
     if (source.droppableId !== destination.droppableId) {
       try {
-        // Assume we have an API function to update task status
-        await fetch(`/api/tasks/${draggableId}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status: destination.droppableId }),
-        });
-        onTaskUpdate();
+        await onTaskUpdate(draggableId, { status: destination.droppableId as Task['status'] });
       } catch (error) {
         console.error('Failed to update task status:', error);
       }
@@ -40,7 +29,7 @@ export function KanbanBoard({ tasks, onTaskUpdate }: KanbanBoardProps) {
     <DragDropContext onDragEnd={onDragEnd}>
       <div className="flex space-x-4">
         {columns.map((column) => (
-          <div key={column} className="bg-gray-100 p-4 rounded-lg w-1/3">
+          <div key={column} className="bg-gray-100 p-4 rounded-lg w-1/5">
             <h3 className="font-semibold mb-4">{column}</h3>
             <Droppable droppableId={column}>
               {(provided) => (
@@ -60,7 +49,7 @@ export function KanbanBoard({ tasks, onTaskUpdate }: KanbanBoardProps) {
                             {...provided.dragHandleProps}
                             className="bg-white p-4 mb-2 rounded shadow"
                           >
-                            {task.title}
+                            {task.ticketNumber}: {task.property}
                           </div>
                         )}
                       </Draggable>

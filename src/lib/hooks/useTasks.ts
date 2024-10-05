@@ -3,13 +3,14 @@ import {
   collection, 
   query, 
   onSnapshot, 
-  doc, 
   updateDoc, 
   addDoc,
   getDoc,
-  setDoc,  // Add this import
+  setDoc,
+  doc,  // Add this import
   DocumentData,
-  Firestore
+  Firestore,
+  deleteDoc // Add this import
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase/firebase';
 
@@ -147,5 +148,21 @@ export function useTasks() {
     return `TASK-${counter.toString().padStart(4, '0')}`;
   };
 
-  return { tasks, loading, error, updateTask, addTask, generateTicketNumber };
+  const deleteTask = async (taskId: string) => {
+    if (!db) {
+      console.error("Firestore is not initialized");
+      throw new Error("Firestore is not initialized");
+    }
+    try {
+      console.log("Deleting task:", taskId);
+      const taskRef = doc(db, 'tasks', taskId);
+      await deleteDoc(taskRef);
+      console.log("Task deleted successfully");
+    } catch (err) {
+      console.error("Error deleting task:", err);
+      throw err;
+    }
+  };
+
+  return { tasks, loading, error, updateTask, addTask, generateTicketNumber, deleteTask };
 }
